@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en" x-data="chatApp()" x-init="init()" :class="theme === 'dark' ? 'dark' : ''" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>peepeepoopoo.ai — pee pee poo poo</title>
+    <meta name="description" content="A tiny ChatGPT-like UI powered by Alpine.js, where the bot only answers 'pee pee' or 'poo poo'." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='50' x='6' font-size='48'%3E%F0%9F%90%B7%3C/text%3E%3C/svg%3E" />
+    <!-- Tailwind (CDN for quick demo). For production, consider a compiled build. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              ink: {
+                50:'#f8f9fb', 100:'#eef0f6', 200:'#dfe3ed', 300:'#c7cddd', 400:'#a3aec7',
+                500:'#7e8fb1', 600:'#5f7298', 700:'#485a7a', 800:'#37445b', 900:'#242c3a', 950:'#111827'
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+      /* simple typing dots */
+      .typing-dot { animation: blink 1s infinite; }
+      .typing-dot:nth-child(2){ animation-delay: .2s; }
+      .typing-dot:nth-child(3){ animation-delay: .4s; }
+      @keyframes blink { 0%, 80%, 100% { opacity: .2 } 40% { opacity: 1 } }
+      html, body { height: 100%; }
+    </style>
+  </head>
+  <body class="h-full bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+    <div class="h-full flex">
+      <!-- Sidebar -->
+      <aside class="hidden md:flex md:flex-col w-64 shrink-0 border-r border-zinc-200/70 dark:border-zinc-800/80 bg-zinc-50/60 dark:bg-zinc-900/40">
+        <div class="p-3 flex items-center gap-2 border-b border-zinc-200/70 dark:border-zinc-800/80">
+          <div class="text-2xl">💬</div>
+          <div>
+            <div class="font-semibold tracking-tight">peepeepoopoo.ai</div>
+          </div>
+        </div>
+        <div class="p-3 flex gap-2">
+          <button @click="newChat()" class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200/80 dark:border-zinc-800 px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/60">
+            <span>+ New chat</span>
+          </button>
+          <button @click="toggleTheme()" class="inline-flex items-center justify-center rounded-xl border border-zinc-200/80 dark:border-zinc-800 px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/60" x-text="theme === 'dark' ? '☀️' : '🌙'"></button>
+        </div>
+        <div class="px-3 py-2 text-xs uppercase tracking-wide text-zinc-500">Recent</div>
+        <nav class="flex-1 overflow-y-auto px-2 pb-4 space-y-1" x-show="chats.length">
+          <template x-for="(c, i) in chats" :key="c.id">
+            <button @click="openChat(i)"
+              class="w-full text-left rounded-lg px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
+              :class="i === currentChatIndex ? 'bg-zinc-100 dark:bg-zinc-800/70' : ''">
+              <div class="truncate" x-text="c.title || 'New chat'"></div>
+              <div class="text-xs text-zinc-500" x-text="formatDate(c.createdAt)"></div>
+            </button>
+          </template>
+        </nav>
+      </aside>
+
+      <!-- Main -->
+      <main class="flex-1 flex flex-col">
+        <!-- Top bar -->
+        <header class="sticky top-0 z-10 border-b border-zinc-200/70 dark:border-zinc-800/80 bg-white/70 dark:bg-zinc-950/70 backdrop-blur">
+          <div class="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <button class="md:hidden rounded-lg px-2 py-1 border border-zinc-200/70 dark:border-zinc-800/80" @click="mobileNavOpen = !mobileNavOpen">☰</button>
+	      <div class="font-semibold tracking-tight">PeePeePooPoo-5o</div>
+              <span class="text-zinc-500 text-sm">• Our most advanced thinking model</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button @click="newChat()" class="inline-flex items-center gap-2 rounded-lg border border-zinc-200/80 dark:border-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/60">+ New chat</button>
+            </div>
+          </div>
+        </header>
+
+        <!-- Messages -->
+        <section class="flex-1 overflow-y-auto" x-ref="scroller">
+          <div class="max-w-4xl mx-auto w-full px-4 py-6 space-y-6">
+            <template x-if="activeChat().messages.length === 0">
+              <div class="mt-10 text-center text-zinc-500">
+                <div class="text-4xl mb-2">💩</div>
+                <div class="text-lg font-medium">Start a conversation</div>
+              </div>
+            </template>
+
+            <template x-for="(m, idx) in activeChat().messages" :key="idx">
+              <div class="flex w-full" :class="m.role === 'user' ? 'justify-end' : 'justify-start'">
+                <div class="max-w-[85%] md:max-w-[70%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm"
+                     :class="m.role === 'user' ? 'bg-ink-600 text-white dark:bg-ink-700' : 'bg-zinc-100 dark:bg-zinc-800'">
+                  <template x-if="m.typing">
+                    <div class="flex gap-1 items-center">
+                      <span class="typing-dot inline-block w-2 h-2 rounded-full bg-current"></span>
+                      <span class="typing-dot inline-block w-2 h-2 rounded-full bg-current"></span>
+                      <span class="typing-dot inline-block w-2 h-2 rounded-full bg-current"></span>
+                    </div>
+                  </template>
+                  <template x-if="!m.typing">
+                    <div x-text="m.content"></div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </section>
+
+        <!-- Composer -->
+        <footer class="border-t border-zinc-200/70 dark:border-zinc-800/80">
+          <div class="max-w-4xl mx-auto px-4 py-4">
+            <div class="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+              <label for="composer" class="sr-only">Message peepeepoopoo.ai</label>
+              <textarea id="composer" x-ref="composer" x-model="input" @input="autosize($event)"
+                @keydown.enter.prevent="if(!$event.shiftKey){ sendMessage() } else { input = input + '\n'; $nextTick(()=>autosize($event)) }"
+                placeholder="Message peepeepoopoo.ai"
+                class="w-full resize-none bg-transparent px-4 py-3 text-sm focus:outline-none"
+                rows="1"></textarea>
+              <div class="flex items-center justify-between px-3 pb-2">
+                <div class="text-xs text-zinc-500">Press Enter to send • Shift+Enter for newline</div>
+                <div class="flex items-center gap-2">
+                  <button @click="sendMessage()" :disabled="!input.trim()" class="inline-flex items-center gap-2 rounded-xl bg-ink-700 text-white px-3 py-1.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-ink-800">
+                    Send
+                  </button>
+                </div>
+              </div>
+            </div>
+	    <p class="mt-2 text-[11px] text-zinc-500 text-center">You implicitly give us all permissions to use our data to train our peepeepoopoo-5o Model. Poo poo.</p>
+          </div>
+        </footer>
+      </main>
+    </div>
+
+    <!-- Mobile sheet for sidebar (basic) -->
+    <div class="md:hidden fixed inset-0 z-50 bg-black/40" x-show="mobileNavOpen" x-transition.opacity @click.self="mobileNavOpen=false">
+      <div class="absolute left-0 top-0 h-full w-72 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200/70 dark:border-zinc-800 p-3" x-trap.noscroll.inert="mobileNavOpen">
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-semibold">peepeepoopoo.ai</div>
+          <button class="rounded-lg border px-2 py-1 text-sm" @click="mobileNavOpen=false">✕</button>
+        </div>
+        <button @click="newChat(); mobileNavOpen=false" class="w-full mb-2 inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200/80 dark:border-zinc-800 px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/60">+ New chat</button>
+        <div class="text-xs uppercase tracking-wide text-zinc-500 mb-1">Recent</div>
+        <nav class="space-y-1 max-h-[70vh] overflow-y-auto">
+          <template x-for="(c, i) in chats" :key="c.id">
+            <button @click="openChat(i); mobileNavOpen=false" class="w-full text-left rounded-lg px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/60" :class="i === currentChatIndex ? 'bg-zinc-100 dark:bg-zinc-800/70' : ''">
+              <div class="truncate" x-text="c.title || 'New chat'"></div>
+              <div class="text-xs text-zinc-500" x-text="formatDate(c.createdAt)"></div>
+            </button>
+          </template>
+        </nav>
+      </div>
+    </div>
+
+    <script>
+      function chatApp(){
+        return {
+          theme: 'dark',
+          mode: 'random', // 'random' | 'pee' | 'poo'
+          input: '',
+          chats: [],
+          currentChatIndex: 0,
+          mobileNavOpen: false,
+
+          init(){
+            // load theme + chats
+            const t = localStorage.getItem('ppp_theme');
+            this.theme = t || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            const saved = localStorage.getItem('ppp_chats_v1');
+            if(saved){
+              try { this.chats = JSON.parse(saved); } catch(e){ this.chats = []; }
+            }
+            if(this.chats.length === 0){ this.newChat(); }
+
+            this.$watch('chats', () => this.persist(), { deep: true });
+            this.$watch('currentChatIndex', () => this.$nextTick(() => this.scrollToBottom()));
+          },
+
+          persist(){ localStorage.setItem('ppp_chats_v1', JSON.stringify(this.chats)); },
+          toggleTheme(){ this.theme = this.theme === 'dark' ? 'light' : 'dark'; localStorage.setItem('ppp_theme', this.theme); },
+
+          newChat(){
+            this.chats.unshift({ id: crypto.randomUUID(), title: 'New chat', createdAt: Date.now(), messages: [] });
+            this.currentChatIndex = 0;
+            this.$nextTick(() => this.scrollToBottom());
+          },
+
+          openChat(i){ this.currentChatIndex = i; },
+          activeChat(){ return this.chats[this.currentChatIndex]; },
+
+          autosize(e){ const el = e.target || this.$refs.composer; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 240) + 'px'; },
+
+          setTitleFromFirstUser(){
+            const chat = this.activeChat();
+            const firstUser = chat.messages.find(m => m.role === 'user');
+            if(firstUser){ chat.title = firstUser.content.slice(0, 40) || 'New chat'; }
+          },
+
+          sendMessage(){
+            const text = this.input.trim();
+            if(!text) return;
+            const chat = this.activeChat();
+            chat.messages.push({ role: 'user', content: text });
+            this.setTitleFromFirstUser();
+            this.input = '';
+            this.$nextTick(() => { this.autosize({ target: this.$refs.composer }); this.scrollToBottom(); });
+
+            // typing indicator
+            const typingIndex = chat.messages.push({ role: 'bot', content: '...', typing: true }) - 1;
+            this.$nextTick(() => this.scrollToBottom());
+
+            // generate reply
+            const reply = this.generateReply();
+            setTimeout(() => {
+              // replace typing with final message
+              chat.messages.splice(typingIndex, 1, { role: 'bot', content: reply, typing: false });
+              this.$nextTick(() => this.scrollToBottom());
+            }, 500 + Math.random()*700);
+          },
+
+          generateReply(){
+            return Math.random() < 0.5 ? 'pee pee' : 'poo poo';
+          },
+
+          scrollToBottom(){
+            try { this.$refs.scroller.scrollTo({ top: this.$refs.scroller.scrollHeight, behavior: 'smooth' }); } catch(e){}
+          },
+
+          formatDate(ts){
+            const d = new Date(ts);
+            return d.toLocaleString([], { month:'short', day:'numeric' });
+          }
+        }
+      }
+    </script>
+  </body>
+</html>
+
