@@ -105,7 +105,30 @@
                   </template>
                 </div>
               </div>
-You implicitly give us all permissions to use your data to train our peepeepoopoo-5o Model. Poo poo.</p>
+            </template>
+          </div>
+        </section>
+
+        <!-- Composer -->
+        <footer class="border-t border-zinc-200/70 dark:border-zinc-800/80">
+          <div class="max-w-4xl mx-auto px-4 py-4">
+            <div class="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+              <label for="composer" class="sr-only">Message peepeepoopoo.ai</label>
+              <textarea id="composer" x-ref="composer" x-model="input" @input="autosize($event)"
+                @keydown.enter.prevent="if(!$event.shiftKey){ sendMessage() } else { input = input + '\n'; $nextTick(()=>autosize($event)) }"
+                placeholder="Message peepeepoopoo.ai"
+                class="w-full resize-none bg-transparent px-4 py-3 text-sm focus:outline-none"
+                rows="1"></textarea>
+              <div class="flex items-center justify-between px-3 pb-2">
+                <div class="text-xs text-zinc-500">Press Enter to send • Shift+Enter for newline</div>
+                <div class="flex items-center gap-2">
+                  <button @click="sendMessage()" :disabled="!input.trim()" class="inline-flex items-center gap-2 rounded-xl bg-ink-700 text-white px-3 py-1.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-ink-800">
+                    Send
+                  </button>
+                </div>
+              </div>
+            </div>
+	    <p class="mt-2 text-[11px] text-zinc-500 text-center">You implicitly give us all permissions to use our data to train our peepeepoopoo-5o Model. Poo poo.</p>
           </div>
         </footer>
       </main>
