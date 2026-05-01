@@ -18,7 +18,7 @@
     --accent:#ececec;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;padding:0;height:100%;overflow:hidden}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;overscroll-behavior:none}
   body{
     background:var(--bg);
     color:var(--text);
@@ -27,7 +27,7 @@
     line-height:1.6;
     -webkit-font-smoothing:antialiased;
   }
-  .app{display:flex;height:100vh}
+  .app{display:flex;height:100dvh}
 
   /* Sidebar */
   .sidebar{
@@ -319,7 +319,7 @@
 
   /* Input */
   .composer-wrap{
-    padding:0 24px 16px;
+    padding:0 24px max(16px, env(safe-area-inset-bottom));
     background:var(--bg);
   }
   .composer{
@@ -382,11 +382,8 @@
     display:flex;
     gap:2px;
     margin-top:6px;
-    opacity:0;
-    transition:opacity .15s ease;
+    opacity:1;
   }
-  .msg.assistant:hover .msg-actions,
-  .msg-actions.active{opacity:1}
   .action-btn{
     background:transparent;
     border:none;
@@ -442,16 +439,30 @@
     transition:opacity 80ms ease;
   }
   .tooltip.show{opacity:1}
+  @media (hover:none), (max-width:768px){
+    .tooltip{display:none !important}
+  }
 
   /* Mobile */
   .menu-btn{display:none}
+  .sidebar-backdrop{
+    display:none;
+    position:fixed;inset:0;
+    background:rgba(0,0,0,.5);
+    z-index:9;
+    opacity:0;
+    transition:opacity .2s ease;
+  }
+  .sidebar-backdrop.show{opacity:1}
   @media (max-width:768px){
     .sidebar{
-      position:absolute;left:0;top:0;bottom:0;z-index:10;
+      position:fixed;left:0;top:0;bottom:0;z-index:10;
       transform:translateX(-100%);
       transition:transform .2s ease;
     }
     .sidebar.open{transform:translateX(0)}
+    .sidebar.open ~ .sidebar-backdrop,
+    body.sidebar-open .sidebar-backdrop{display:block}
     .menu-btn{
       display:flex;align-items:center;justify-content:center;
       width:36px;height:36px;border-radius:8px;
@@ -459,6 +470,9 @@
       cursor:pointer;
     }
     .empty-suggestions{grid-template-columns:1fr}
+    .composer-wrap{padding:0 12px max(12px, env(safe-area-inset-bottom))}
+    .messages-inner{padding:16px 12px 0}
+    .header{padding:0 8px}
   }
 </style>
 </head>
@@ -507,6 +521,7 @@
       </div>
     </div>
   </aside>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
   <main class="main">
     <div class="header">
@@ -611,6 +626,7 @@
     state.activeId = c.id;
     renderSidebar();
     renderMessages();
+    closeSidebarOnMobile();
     setTimeout(()=>document.getElementById('input').focus(), 50);
   }
 
@@ -618,6 +634,16 @@
     state.activeId = id;
     renderSidebar();
     renderMessages();
+    closeSidebarOnMobile();
+  }
+
+  function closeSidebarOnMobile(){
+    if (window.innerWidth <= 768){
+      const sb = document.getElementById('sidebar');
+      const bd = document.getElementById('sidebarBackdrop');
+      if (sb) sb.classList.remove('open');
+      if (bd) bd.classList.remove('show');
+    }
   }
 
   function deleteChat(id, e){
@@ -930,9 +956,17 @@
   });
   document.getElementById('sendBtn').addEventListener('click', send);
   document.getElementById('newChatBtn').addEventListener('click', newChat);
-  document.getElementById('menuBtn').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.toggle('open');
+  function setSidebarOpen(open){
+    const sb = document.getElementById('sidebar');
+    sb.classList.toggle('open', open);
+    document.getElementById('sidebarBackdrop').classList.toggle('show', open);
+  }
+  document.getElementById('menuBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const sb = document.getElementById('sidebar');
+    setSidebarOpen(!sb.classList.contains('open'));
   });
+  document.getElementById('sidebarBackdrop').addEventListener('click', () => setSidebarOpen(false));
 
   // ---------- Tooltips ----------
   const tip = document.createElement('div');
