@@ -1,240 +1,998 @@
 <!doctype html>
-<html lang="en" x-data="chatApp()" x-init="init()" :class="theme === 'dark' ? 'dark' : ''" class="h-full">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>peepeepoopoo.ai — pee pee poo poo</title>
-    <meta name="description" content="A tiny ChatGPT-like UI powered by Alpine.js, where the bot only answers 'pee pee' or 'poo poo'." />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='https://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='50' x='6' font-size='48'%3E%F0%9F%90%B7%3C/text%3E%3C/svg%3E" />
-    <!-- Tailwind (CDN for quick demo). For production, consider a compiled build. -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              ink: {
-                50:'#f8f9fb', 100:'#eef0f6', 200:'#dfe3ed', 300:'#c7cddd', 400:'#a3aec7',
-                500:'#7e8fb1', 600:'#5f7298', 700:'#485a7a', 800:'#37445b', 900:'#242c3a', 950:'#111827'
-              }
-            }
-          }
-        }
-      }
-    </script>
-    <!-- Alpine.js -->
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <style>
-      /* simple typing dots */
-      .typing-dot { animation: blink 1s infinite; }
-      .typing-dot:nth-child(2){ animation-delay: .2s; }
-      .typing-dot:nth-child(3){ animation-delay: .4s; }
-      @keyframes blink { 0%, 80%, 100% { opacity: .2 } 40% { opacity: 1 } }
-      html, body { height: 100%; }
-    </style>
-  </head>
-  <body class="h-full bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-    <div class="h-full flex">
-      <!-- Sidebar -->
-      <aside class="hidden md:flex md:flex-col w-64 shrink-0 border-r border-zinc-200/70 dark:border-zinc-800/80 bg-zinc-50/60 dark:bg-zinc-900/40">
-        <div class="p-3 flex items-center gap-2 border-b border-zinc-200/70 dark:border-zinc-800/80">
-          <div class="text-2xl">💬</div>
-          <div>
-            <div class="font-semibold tracking-tight">peepeepoopoo.ai</div>
-          </div>
-        </div>
-        <div class="p-3 flex gap-2">
-          <button @click="newChat()" class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200/80 dark:border-zinc-800 px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/60">
-            <span>+ New chat</span>
-          </button>
-          <button @click="toggleTheme()" class="inline-flex items-center justify-center rounded-xl border border-zinc-200/80 dark:border-zinc-800 px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/60" x-text="theme === 'dark' ? '☀️' : '🌙'"></button>
-        </div>
-        <div class="px-3 py-2 text-xs uppercase tracking-wide text-zinc-500">Recent</div>
-        <nav class="flex-1 overflow-y-auto px-2 pb-4 space-y-1" x-show="chats.length">
-          <template x-for="(c, i) in chats" :key="c.id">
-            <button @click="openChat(i)"
-              class="w-full text-left rounded-lg px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
-              :class="i === currentChatIndex ? 'bg-zinc-100 dark:bg-zinc-800/70' : ''">
-              <div class="truncate" x-text="c.title || 'New chat'"></div>
-              <div class="text-xs text-zinc-500" x-text="formatDate(c.createdAt)"></div>
-            </button>
-          </template>
-        </nav>
-      </aside>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>peepeepoopoo</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💩</text></svg>">
+<style>
+  :root{
+    --bg:#212121;
+    --side:#171717;
+    --side-hover:#2a2a2a;
+    --bubble:#2f2f2f;
+    --bubble-hover:#3a3a3a;
+    --text:#ececec;
+    --muted:#a0a0a0;
+    --border:#2f2f2f;
+    --accent:#ececec;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    font-size:16px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{display:flex;height:100vh}
 
-      <!-- Main -->
-      <main class="flex-1 flex flex-col">
-        <!-- Top bar -->
-        <header class="sticky top-0 z-10 border-b border-zinc-200/70 dark:border-zinc-800/80 bg-white/70 dark:bg-zinc-950/70 backdrop-blur">
-          <div class="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <button class="md:hidden rounded-lg px-2 py-1 border border-zinc-200/70 dark:border-zinc-800/80" @click="mobileNavOpen = !mobileNavOpen">☰</button>
-	      <div class="font-semibold tracking-tight">PeePeePooPoo-5o</div>
-              <span class="text-zinc-500 text-sm">• Our most advanced thinking model</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <button @click="newChat()" class="inline-flex items-center gap-2 rounded-lg border border-zinc-200/80 dark:border-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/60">+ New chat</button>
-            </div>
-          </div>
-        </header>
+  /* Sidebar */
+  .sidebar{
+    width:260px;
+    background:var(--side);
+    display:flex;
+    flex-direction:column;
+    flex-shrink:0;
+    border-right:1px solid #000;
+  }
+  .side-top{
+    padding:10px;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+  .new-chat{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:10px 12px;
+    border-radius:8px;
+    background:transparent;
+    color:var(--text);
+    border:none;
+    cursor:pointer;
+    font-size:14px;
+    font-weight:500;
+    width:100%;
+    text-align:left;
+  }
+  .new-chat:hover{background:var(--side-hover)}
+  .new-chat .plus{font-size:18px;font-weight:300}
+  .brand{
+    display:flex;align-items:center;gap:8px;
+    padding:10px 12px;
+    font-weight:600;font-size:14px;
+  }
+  .logo{
+    width:28px;height:28px;border-radius:50%;
+    background:#1a1a1a;
+    border:1px solid #3a3a3a;
+    display:flex;align-items:center;justify-content:center;
+    font-size:18px;
+    line-height:1;
+  }
+  .chats{
+    flex:1;
+    overflow-y:auto;
+    padding:8px;
+  }
+  .chats-label{
+    font-size:11px;
+    color:var(--muted);
+    padding:8px 12px 4px;
+    font-weight:600;
+  }
+  .chat-item{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:14px;
+    color:var(--text);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    margin-bottom:2px;
+    gap:6px;
+  }
+  .chat-item:hover{background:var(--side-hover)}
+  .chat-item.active{background:var(--side-hover)}
+  .chat-item .title{
+    flex:1;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .chat-item .delete{
+    opacity:0;
+    background:none;border:none;color:var(--muted);
+    cursor:pointer;
+    font-size:14px;
+    padding:2px 4px;
+    border-radius:4px;
+  }
+  .chat-item:hover .delete{opacity:1}
+  .chat-item .delete:hover{background:#444;color:#fff}
 
-        <!-- Messages -->
-        <section class="flex-1 overflow-y-auto" x-ref="scroller">
-          <div class="max-w-4xl mx-auto w-full px-4 py-6 space-y-6">
-            <template x-if="activeChat().messages.length === 0">
-              <div class="mt-10 text-center text-zinc-500">
-                <div class="text-4xl mb-2">💩</div>
-                <div class="text-lg font-medium">Start a conversation</div>
-              </div>
-            </template>
+  .side-bottom{
+    border-top:1px solid #2a2a2a;
+    padding:10px;
+    position:relative;
+  }
+  .user-row{
+    display:flex;align-items:center;gap:10px;
+    padding:8px 10px;border-radius:8px;
+    cursor:pointer;
+  }
+  .user-row:hover{background:var(--side-hover)}
+  .user-menu{
+    position:absolute;
+    bottom:calc(100% - 2px);
+    left:10px;
+    right:10px;
+    background:#2a2a2a;
+    border:1px solid #3a3a3a;
+    border-radius:12px;
+    padding:4px;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);
+    z-index:100;
+    opacity:0;
+    transform:translateY(4px);
+    pointer-events:none;
+    transition:opacity .12s ease, transform .12s ease;
+  }
+  .user-menu.open{
+    opacity:1;
+    transform:translateY(0);
+    pointer-events:auto;
+  }
+  .menu-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:9px 12px;
+    border-radius:8px;
+    font-size:14px;
+    color:var(--text);
+    cursor:pointer;
+    text-decoration:none;
+    line-height:1.3;
+  }
+  .menu-item:hover{background:#3a3a3a}
+  .menu-item .ico{font-size:14px;width:16px;text-align:center;opacity:.85}
+  .menu-divider{
+    height:1px;
+    background:#3a3a3a;
+    margin:4px 6px;
+  }
+  .menu-credit{
+    padding:8px 12px 6px;
+    font-size:11px;
+    color:var(--muted);
+    text-align:center;
+    line-height:1.4;
+  }
+  .menu-credit a{color:var(--muted);text-decoration:underline}
+  .menu-credit a:hover{color:var(--text)}
+  .avatar{
+    width:28px;height:28px;border-radius:50%;
+    background:#a259d9;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:600;font-size:13px;color:#fff;
+  }
+  .user-name{font-size:14px;font-weight:500}
 
-            <template x-for="(m, idx) in activeChat().messages" :key="idx">
-              <div class="flex w-full" :class="m.role === 'user' ? 'justify-end' : 'justify-start'">
-                <div class="max-w-[85%] md:max-w-[70%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm"
-                     :class="m.role === 'user' ? 'bg-ink-600 text-white dark:bg-ink-700' : 'bg-zinc-100 dark:bg-zinc-800'">
-                  <template x-if="m.typing">
-                    <div class="flex gap-1 items-center">
-                      <span class="typing-dot inline-block w-2 h-2 rounded-full bg-current"></span>
-                      <span class="typing-dot inline-block w-2 h-2 rounded-full bg-current"></span>
-                      <span class="typing-dot inline-block w-2 h-2 rounded-full bg-current"></span>
-                    </div>
-                  </template>
-                  <template x-if="!m.typing">
-                    <div x-text="m.content"></div>
-                  </template>
-                </div>
-              </div>
-            </template>
-          </div>
-        </section>
+  /* Main */
+  .main{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+    position:relative;
+  }
+  .header{
+    height:56px;
+    display:flex;align-items:center;
+    padding:0 16px;
+    font-weight:600;font-size:16px;
+    gap:6px;
+    color:var(--text);
+  }
+  .header .model{
+    color:var(--muted);
+    font-weight:400;
+    font-size:13px;
+  }
+  .messages{
+    flex:1;
+    overflow-y:auto;
+    padding:0 0 24px;
+  }
+  .messages-inner{
+    max-width:768px;
+    margin:0 auto;
+    padding:24px 24px 0;
+  }
+  .empty-state{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    height:100%;
+    text-align:center;
+    gap:24px;
+    padding:40px 24px;
+  }
+  .empty-state h1{
+    font-size:30px;
+    font-weight:600;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  .empty-suggestions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+    width:100%;
+    max-width:600px;
+  }
+  .suggestion{
+    background:transparent;
+    border:1px solid #3a3a3a;
+    color:var(--text);
+    padding:14px 16px;
+    border-radius:12px;
+    text-align:left;
+    cursor:pointer;
+    font-size:14px;
+    font-family:inherit;
+  }
+  .suggestion:hover{background:var(--side-hover)}
+  .suggestion .s-title{font-weight:500;margin-bottom:2px}
+  .suggestion .s-sub{color:var(--muted);font-size:13px}
 
-        <!-- Composer -->
-        <footer class="border-t border-zinc-200/70 dark:border-zinc-800/80">
-          <div class="max-w-4xl mx-auto px-4 py-4">
-            <div class="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-              <label for="composer" class="sr-only">Message peepeepoopoo.ai</label>
-              <textarea id="composer" x-ref="composer" x-model="input" @input="autosize($event)"
-                @keydown.enter.prevent="if(!$event.shiftKey){ sendMessage() } else { input = input + '\n'; $nextTick(()=>autosize($event)) }"
-                placeholder="Message peepeepoopoo.ai"
-                class="w-full resize-none bg-transparent px-4 py-3 text-sm focus:outline-none"
-                rows="1"></textarea>
-              <div class="flex items-center justify-between px-3 pb-2">
-                <div class="text-xs text-zinc-500">Press Enter to send • Shift+Enter for newline</div>
-                <div class="flex items-center gap-2">
-                  <button @click="sendMessage()" :disabled="!input.trim()" class="inline-flex items-center gap-2 rounded-xl bg-ink-700 text-white px-3 py-1.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-ink-800">
-                    Send
-                  </button>
-                </div>
-              </div>
-            </div>
-	    <p class="mt-2 text-[11px] text-zinc-500 text-center">You implicitly give us all permissions to use our data to train our peepeepoopoo-5o Model. Poo poo.</p>
-          </div>
-        </footer>
-      </main>
+  .msg{
+    display:flex;
+    gap:16px;
+    margin-bottom:24px;
+  }
+  .msg .body{flex:1;min-width:0}
+  .msg.user{justify-content:flex-end}
+  .msg.user .bubble{
+    background:var(--bubble);
+    padding:10px 16px;
+    border-radius:18px;
+    max-width:75%;
+    white-space:pre-wrap;
+    word-wrap:break-word;
+  }
+  .msg.assistant .body{
+    padding-top:2px;
+    white-space:pre-wrap;
+    word-wrap:break-word;
+  }
+  .msg.assistant .av{
+    width:28px;height:28px;border-radius:50%;
+    background:#1a1a1a;
+    border:1px solid #3a3a3a;
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+    font-size:18px;
+    line-height:1;
+  }
+
+  .thinking{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    color:var(--muted);
+    font-size:14px;
+  }
+  .thinking .dots{
+    display:inline-flex;
+    gap:3px;
+  }
+  .thinking .dots span{
+    width:6px;height:6px;border-radius:50%;
+    background:var(--muted);
+    animation:bounce 1.2s infinite ease-in-out;
+  }
+  .thinking .dots span:nth-child(2){animation-delay:.15s}
+  .thinking .dots span:nth-child(3){animation-delay:.3s}
+  @keyframes bounce{
+    0%,80%,100%{transform:scale(.6);opacity:.4}
+    40%{transform:scale(1);opacity:1}
+  }
+
+  .cursor{
+    display:inline-block;
+    width:8px;height:18px;
+    background:var(--text);
+    vertical-align:-3px;
+    margin-left:2px;
+    animation:blink 1s infinite steps(2);
+  }
+  @keyframes blink{50%{opacity:0}}
+
+  /* Input */
+  .composer-wrap{
+    padding:0 24px 16px;
+    background:var(--bg);
+  }
+  .composer{
+    max-width:768px;
+    margin:0 auto;
+    background:var(--bubble);
+    border-radius:28px;
+    padding:12px 14px 12px 18px;
+    display:flex;
+    align-items:flex-end;
+    gap:8px;
+    border:1px solid #3a3a3a;
+  }
+  .composer textarea{
+    flex:1;
+    background:transparent;
+    border:none;
+    outline:none;
+    color:var(--text);
+    font-family:inherit;
+    font-size:16px;
+    line-height:1.5;
+    resize:none;
+    max-height:200px;
+    min-height:24px;
+    padding:6px 0;
+  }
+  .composer textarea::placeholder{color:var(--muted)}
+  .send-btn{
+    width:36px;height:36px;
+    border-radius:50%;
+    background:var(--accent);
+    color:#000;
+    border:none;
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+    transition:opacity .15s;
+  }
+  .send-btn:disabled{opacity:.3;cursor:not-allowed}
+  .send-btn svg{width:18px;height:18px}
+
+  .footer-note{
+    text-align:center;
+    color:var(--muted);
+    font-size:12px;
+    padding:8px 0 4px;
+    max-width:768px;
+    margin:0 auto;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:4px}
+  ::-webkit-scrollbar-thumb:hover{background:#4a4a4a}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* Message actions */
+  .msg-actions{
+    display:flex;
+    gap:2px;
+    margin-top:6px;
+    opacity:0;
+    transition:opacity .15s ease;
+  }
+  .msg.assistant:hover .msg-actions,
+  .msg-actions.active{opacity:1}
+  .action-btn{
+    background:transparent;
+    border:none;
+    color:var(--muted);
+    cursor:pointer;
+    padding:6px;
+    border-radius:6px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .action-btn:hover{background:#2a2a2a;color:var(--text)}
+  .action-btn.selected{color:var(--text)}
+  .action-btn svg{width:16px;height:16px;display:block}
+
+  /* Toast */
+  .toast{
+    position:fixed;
+    bottom:120px;
+    left:50%;
+    transform:translateX(-50%) translateY(10px);
+    background:#2a2a2a;
+    border:1px solid #3a3a3a;
+    color:var(--text);
+    padding:10px 16px;
+    border-radius:10px;
+    font-size:14px;
+    box-shadow:0 4px 20px rgba(0,0,0,.5);
+    opacity:0;
+    transition:opacity .2s ease, transform .2s ease;
+    pointer-events:none;
+    z-index:9998;
+    white-space:nowrap;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* Tooltip */
+  .tooltip{
+    position:fixed;
+    z-index:9999;
+    background:#0d0d0d;
+    color:#ececec;
+    border:1px solid #3a3a3a;
+    padding:5px 9px;
+    border-radius:6px;
+    font-size:12px;
+    line-height:1.3;
+    pointer-events:none;
+    opacity:0;
+    max-width:240px;
+    white-space:nowrap;
+    box-shadow:0 4px 16px rgba(0,0,0,.5);
+    transition:opacity 80ms ease;
+  }
+  .tooltip.show{opacity:1}
+
+  /* Mobile */
+  .menu-btn{display:none}
+  @media (max-width:768px){
+    .sidebar{
+      position:absolute;left:0;top:0;bottom:0;z-index:10;
+      transform:translateX(-100%);
+      transition:transform .2s ease;
+    }
+    .sidebar.open{transform:translateX(0)}
+    .menu-btn{
+      display:flex;align-items:center;justify-content:center;
+      width:36px;height:36px;border-radius:8px;
+      background:transparent;border:none;color:var(--text);
+      cursor:pointer;
+    }
+    .empty-suggestions{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="side-top">
+      <div class="brand" title="yes, that's the real name">
+        <div class="logo">💩</div>
+        peepeepoopoo
+      </div>
+      <button class="new-chat" id="newChatBtn" title="start a fresh smell">
+        <span>New chat</span>
+        <span class="plus">+</span>
+      </button>
     </div>
-
-    <!-- Mobile sheet for sidebar (basic) -->
-    <div class="md:hidden fixed inset-0 z-50 bg-black/40" x-show="mobileNavOpen" x-transition.opacity @click.self="mobileNavOpen=false">
-      <div class="absolute left-0 top-0 h-full w-72 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200/70 dark:border-zinc-800 p-3" x-trap.noscroll.inert="mobileNavOpen">
-        <div class="flex items-center justify-between mb-2">
-          <div class="font-semibold">peepeepoopoo.ai</div>
-          <button class="rounded-lg border px-2 py-1 text-sm" @click="mobileNavOpen=false">✕</button>
+    <div class="chats" id="chatList">
+      <div class="chats-label">Chats</div>
+    </div>
+    <div class="side-bottom">
+      <div class="user-menu" id="userMenu">
+        <div class="menu-item" title="$9.99/poop, billed forever">
+          <span class="ico">⬆️</span>
+          <span>Upgrade to Plus 💩</span>
         </div>
-        <button @click="newChat(); mobileNavOpen=false" class="w-full mb-2 inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200/80 dark:border-zinc-800 px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/60">+ New chat</button>
-        <div class="text-xs uppercase tracking-wide text-zinc-500 mb-1">Recent</div>
-        <nav class="space-y-1 max-h-[70vh] overflow-y-auto">
-          <template x-for="(c, i) in chats" :key="c.id">
-            <button @click="openChat(i); mobileNavOpen=false" class="w-full text-left rounded-lg px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/60" :class="i === currentChatIndex ? 'bg-zinc-100 dark:bg-zinc-800/70' : ''">
-              <div class="truncate" x-text="c.title || 'New chat'"></div>
-              <div class="text-xs text-zinc-500" x-text="formatDate(c.createdAt)"></div>
-            </button>
-          </template>
-        </nav>
+        <div class="menu-item" title="you can't, this is your personality now">
+          <span class="ico">✏️</span>
+          <span>Customize peepeepoopoo</span>
+        </div>
+        <div class="menu-item" title="leads nowhere">
+          <span class="ico">⚙️</span>
+          <span>Settings</span>
+        </div>
+        <div class="menu-item" title="you can never log out">
+          <span class="ico">🚪</span>
+          <span>Log out</span>
+        </div>
+        <div class="menu-divider"></div>
+        <div class="menu-credit">
+          made with 💩 by <a href="http://palspalspals.com" target="_blank" rel="noopener" title="the geniuses behind this mess">palspalspals.com</a>
+        </div>
+      </div>
+      <div class="user-row" id="userRow" title="click me">
+        <div class="avatar">U</div>
+        <div class="user-name">You</div>
       </div>
     </div>
+  </aside>
 
-    <script>
-      function chatApp(){
-        return {
-          theme: 'dark',
-          mode: 'random', // 'random' | 'pee' | 'poo'
-          input: '',
-          chats: [],
-          currentChatIndex: 0,
-          mobileNavOpen: false,
+  <main class="main">
+    <div class="header">
+      <button class="menu-btn" id="menuBtn" aria-label="Menu" title="more chats, more regret">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      peepeepoopoo <span class="model" title="trained on 100% organic waste">4o</span>
+    </div>
 
-          init(){
-            // load theme + chats
-            const t = localStorage.getItem('ppp_theme');
-            this.theme = t || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-            const saved = localStorage.getItem('ppp_chats_v1');
-            if(saved){
-              try { this.chats = JSON.parse(saved); } catch(e){ this.chats = []; }
-            }
-            if(this.chats.length === 0){ this.newChat(); }
+    <div class="messages" id="messages"></div>
 
-            this.$watch('chats', () => this.persist(), { deep: true });
-            this.$watch('currentChatIndex', () => this.$nextTick(() => this.scrollToBottom()));
-          },
+    <div class="composer-wrap">
+      <div class="composer">
+        <textarea id="input" rows="1" placeholder="Message peepeepoopoo" title="type anything. it doesn't matter."></textarea>
+        <button class="send-btn" id="sendBtn" disabled aria-label="Send" title="launch your question into the void">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+        </button>
+      </div>
+      <div class="footer-note">peepeepoopoo can make mistakes. it definitely will.</div>
+    </div>
+  </main>
+</div>
 
-          persist(){ localStorage.setItem('ppp_chats_v1', JSON.stringify(this.chats)); },
-          toggleTheme(){ this.theme = this.theme === 'dark' ? 'light' : 'dark'; localStorage.setItem('ppp_theme', this.theme); },
+<script>
+  // ---------- Response generator ----------
+  const WORDS = [
+    'peepee','poopoo','pee pee','poo poo','pee','poo',
+    'peepee','poopoo','peepee','poopoo',
+    'PEEPEE','POOPOO','Peepee','Poopoo',
+    'peepeepoopoo',
+    '💩','💩','💧'
+  ];
+  const ENDINGS = ['.','!','?','?','?','...','?!','!!','.','!','?','?','?!','??'];
+  const MIDS = [',',',',',',';',' —',':','?'];
 
-          newChat(){
-            this.chats.unshift({ id: crypto.randomUUID(), title: 'New chat', createdAt: Date.now(), messages: [] });
-            this.currentChatIndex = 0;
-            this.$nextTick(() => this.scrollToBottom());
-          },
+  function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
-          openChat(i){ this.currentChatIndex = i; },
-          activeChat(){ return this.chats[this.currentChatIndex]; },
+  function randomSentence(){
+    const len = 1 + Math.floor(Math.random()*14);
+    let s = pick(WORDS);
+    for (let i = 1; i < len; i++){
+      let w = pick(WORDS);
+      if (Math.random() < 0.02) w = '"' + w + '"';
+      if (Math.random() < 0.18) s += pick(MIDS) + ' ' + w;
+      else s += ' ' + w;
+    }
+    s = s.charAt(0).toUpperCase() + s.slice(1);
+    return s + pick(ENDINGS);
+  }
 
-          autosize(e){ const el = e.target || this.$refs.composer; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 240) + 'px'; },
+  function randomResponse(){
+    const n = 1 + Math.floor(Math.random()*6);
+    const sentences = [];
+    for (let i = 0; i < n; i++) sentences.push(randomSentence());
+    // sometimes break into paragraphs
+    if (Math.random() < 0.25 && sentences.length > 2){
+      const split = 1 + Math.floor(Math.random()*(sentences.length-1));
+      return sentences.slice(0,split).join(' ') + '\n\n' + sentences.slice(split).join(' ');
+    }
+    return sentences.join(' ');
+  }
 
-          setTitleFromFirstUser(){
-            const chat = this.activeChat();
-            const firstUser = chat.messages.find(m => m.role === 'user');
-            if(firstUser){ chat.title = firstUser.content.slice(0, 40) || 'New chat'; }
-          },
+  // ---------- Angry response (thumbs down) ----------
+  const ANGRY_WORDS = [
+    'PEEPEE','POOPOO','PEE','POO','PEEPEEPOOPOO',
+    'PEE PEE','POO POO','PEEEEE','POOOOO','POOPOOOO',
+    'PEEPEE','POOPOO','PEEPEE','POOPOO',
+    'PEEPEEEE','POOPOOOOO'
+  ];
+  const ANGRY_EMOJIS = ['😡','🤬','😤','🔥','💢','👿','‼️','💩','🚫','😠','💥','⚡','🖕','😾','🗯️'];
+  const ANGRY_ENDINGS = ['!!','!!!','!!!!','?!','?!?!','!!1!','!?!?','!!!!!','‼️‼️'];
 
-          sendMessage(){
-            const text = this.input.trim();
-            if(!text) return;
-            const chat = this.activeChat();
-            chat.messages.push({ role: 'user', content: text });
-            this.setTitleFromFirstUser();
-            this.input = '';
-            this.$nextTick(() => { this.autosize({ target: this.$refs.composer }); this.scrollToBottom(); });
+  function angrySentence(){
+    const len = 2 + Math.floor(Math.random()*6);
+    let s = pick(ANGRY_WORDS);
+    if (Math.random() < 0.6) s += pick(ANGRY_EMOJIS);
+    for (let i = 1; i < len; i++){
+      s += ' ' + pick(ANGRY_WORDS);
+      if (Math.random() < 0.5) s += pick(ANGRY_EMOJIS);
+    }
+    return s + pick(ANGRY_ENDINGS);
+  }
 
-            // typing indicator
-            const typingIndex = chat.messages.push({ role: 'bot', content: '...', typing: true }) - 1;
-            this.$nextTick(() => this.scrollToBottom());
+  function angryResponse(){
+    const n = 2 + Math.floor(Math.random()*4);
+    const sentences = [];
+    for (let i = 0; i < n; i++) sentences.push(angrySentence());
+    return sentences.join(' ');
+  }
 
-            // generate reply
-            const reply = this.generateReply();
-            setTimeout(() => {
-              // replace typing with final message
-              chat.messages.splice(typingIndex, 1, { role: 'bot', content: reply, typing: false });
-              this.$nextTick(() => this.scrollToBottom());
-            }, 500 + Math.random()*700);
-          },
+  // ---------- State ----------
+  const state = {
+    chats: [], // {id, title, messages:[{role,content}]}
+    activeId: null,
+  };
 
-          generateReply(){
-            return Math.random() < 0.5 ? 'pee pee' : 'poo poo';
-          },
+  function uid(){ return Math.random().toString(36).slice(2,10); }
 
-          scrollToBottom(){
-            try { this.$refs.scroller.scrollTo({ top: this.$refs.scroller.scrollHeight, behavior: 'smooth' }); } catch(e){}
-          },
+  function newChat(){
+    const c = { id: uid(), title: 'New chat', messages: [] };
+    state.chats.unshift(c);
+    state.activeId = c.id;
+    renderSidebar();
+    renderMessages();
+    setTimeout(()=>document.getElementById('input').focus(), 50);
+  }
 
-          formatDate(ts){
-            const d = new Date(ts);
-            return d.toLocaleString([], { month:'short', day:'numeric' });
-          }
-        }
-      }
-    </script>
-  </body>
+  function selectChat(id){
+    state.activeId = id;
+    renderSidebar();
+    renderMessages();
+  }
+
+  function deleteChat(id, e){
+    e.stopPropagation();
+    state.chats = state.chats.filter(c => c.id !== id);
+    if (state.activeId === id){
+      if (state.chats.length === 0) newChat();
+      else { state.activeId = state.chats[0].id; renderSidebar(); renderMessages(); }
+    } else {
+      renderSidebar();
+    }
+  }
+
+  function getActiveChat(){
+    return state.chats.find(c => c.id === state.activeId);
+  }
+
+  // ---------- Render ----------
+  function renderSidebar(){
+    const list = document.getElementById('chatList');
+    list.innerHTML = '<div class="chats-label">Chats</div>';
+    state.chats.forEach(c => {
+      const item = document.createElement('div');
+      item.className = 'chat-item' + (c.id === state.activeId ? ' active' : '');
+      item.title = 'open this masterpiece';
+      item.innerHTML = `
+        <span class="title">${escapeHtml(c.title)}</span>
+        <button class="delete" title="flush this one">×</button>
+      `;
+      item.addEventListener('click', () => selectChat(c.id));
+      item.querySelector('.delete').addEventListener('click', (e) => deleteChat(c.id, e));
+      list.appendChild(item);
+    });
+    ensureTips(list);
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderMessages(){
+    const wrap = document.getElementById('messages');
+    const chat = getActiveChat();
+    if (!chat || chat.messages.length === 0){
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <h1>What can I help with?</h1>
+          <div class="empty-suggestions">
+            <button class="suggestion" data-prompt="Explain quantum computing" title="you will not get a real answer">
+              <div class="s-title">Explain quantum computing</div>
+              <div class="s-sub">to a 5 year old</div>
+            </button>
+            <button class="suggestion" data-prompt="Write a haiku" title="5-7-5? more like 💩-💩-💩">
+              <div class="s-title">Write a haiku</div>
+              <div class="s-sub">about my morning</div>
+            </button>
+            <button class="suggestion" data-prompt="Plan a trip to Tokyo" title="the trip is just to the bathroom">
+              <div class="s-title">Plan a trip to Tokyo</div>
+              <div class="s-sub">for 7 days, mid budget</div>
+            </button>
+            <button class="suggestion" data-prompt="What's the meaning of life?" title="spoiler: it's poopoo">
+              <div class="s-title">What's the meaning of life?</div>
+              <div class="s-sub">be honest</div>
+            </button>
+          </div>
+        </div>
+      `;
+      wrap.querySelectorAll('.suggestion').forEach(b => {
+        b.addEventListener('click', () => {
+          const input = document.getElementById('input');
+          input.value = b.dataset.prompt;
+          input.dispatchEvent(new Event('input'));
+          send();
+        });
+      });
+      ensureTips(wrap);
+      return;
+    }
+    wrap.innerHTML = '<div class="messages-inner" id="messagesInner"></div>';
+    const inner = document.getElementById('messagesInner');
+    chat.messages.forEach(m => inner.appendChild(messageEl(m)));
+    scrollToBottom();
+  }
+
+  function messageEl(m){
+    const div = document.createElement('div');
+    div.className = 'msg ' + m.role;
+    if (m.role === 'user'){
+      div.innerHTML = `<div class="bubble"></div>`;
+      div.querySelector('.bubble').textContent = m.content;
+    } else {
+      div.innerHTML = `<div class="av">💩</div><div class="body"></div>`;
+      div.querySelector('.body').textContent = m.content;
+      div.querySelector('.body').appendChild(createActionsEl(m.content));
+    }
+    return div;
+  }
+
+  function createActionsEl(text){
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-actions';
+    wrap.innerHTML = `
+      <button class="action-btn" data-action="speak" data-tip="Read aloud">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+      </button>
+      <button class="action-btn" data-action="up" data-tip="Good response">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+      </button>
+      <button class="action-btn" data-action="down" data-tip="Bad response">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+      </button>
+    `;
+    wrap.querySelector('[data-action="up"]').addEventListener('click', (e) => handleThumbsUp(e, wrap));
+    wrap.querySelector('[data-action="down"]').addEventListener('click', (e) => handleThumbsDown(e, wrap));
+    wrap.querySelector('[data-action="speak"]').addEventListener('click', (e) => speak(text, e.currentTarget));
+    return wrap;
+  }
+
+  // ---------- Speech ----------
+  let activeSpeakBtn = null;
+
+  function speak(text, btn){
+    if (!('speechSynthesis' in window)){
+      showToast('your browser cannot speak peepeepoopoo');
+      return;
+    }
+    // toggle off if clicking the same active button
+    if (activeSpeakBtn === btn){
+      speechSynthesis.cancel();
+      btn.classList.remove('selected');
+      activeSpeakBtn = null;
+      return;
+    }
+    // stop any other speech
+    speechSynthesis.cancel();
+    if (activeSpeakBtn) activeSpeakBtn.classList.remove('selected');
+
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1;
+    u.pitch = 1;
+    u.onend = () => {
+      btn.classList.remove('selected');
+      if (activeSpeakBtn === btn) activeSpeakBtn = null;
+    };
+    u.onerror = u.onend;
+
+    btn.classList.add('selected');
+    activeSpeakBtn = btn;
+    speechSynthesis.speak(u);
+  }
+
+  function handleThumbsUp(e, wrap){
+    const btn = e.currentTarget;
+    btn.classList.add('selected');
+    wrap.classList.add('active');
+    showToast('peepeepoopoo will remember that');
+  }
+
+  async function handleThumbsDown(e, wrap){
+    const btn = e.currentTarget;
+    if (btn.classList.contains('selected')) return; // one rage per message
+    btn.classList.add('selected');
+    wrap.classList.add('active');
+    if (isResponding) return;
+    await streamAngryResponse();
+  }
+
+  async function streamAngryResponse(){
+    isResponding = true;
+    updateSendBtn();
+    const inner = document.getElementById('messagesInner');
+    const angry = document.createElement('div');
+    angry.className = 'msg assistant';
+    angry.innerHTML = `
+      <div class="av">💩</div>
+      <div class="body"><span class="thinking">Thinking<span class="dots"><span></span><span></span><span></span></span></span></div>
+    `;
+    inner.appendChild(angry);
+    scrollToBottom();
+    await sleep(250 + Math.random()*350); // short fuse
+    const response = angryResponse();
+    const body = angry.querySelector('.body');
+    body.innerHTML = '<span class="cursor"></span>';
+    const tokens = response.split(/(\s+)/);
+    let acc = '';
+    for (let i = 0; i < tokens.length; i++){
+      acc += tokens[i];
+      body.innerHTML = escapeHtml(acc).replace(/\n/g,'<br>') + '<span class="cursor"></span>';
+      scrollToBottom();
+      await sleep(12 + Math.random()*30); // angry typing = fast
+    }
+    body.innerHTML = escapeHtml(acc).replace(/\n/g,'<br>');
+    body.appendChild(createActionsEl(response));
+    const chat = getActiveChat();
+    chat.messages.push({ role: 'assistant', content: response });
+    isResponding = false;
+    updateSendBtn();
+    scrollToBottom();
+  }
+
+  // ---------- Toast ----------
+  function showToast(text){
+    let toast = document.getElementById('toast');
+    if (!toast){
+      toast = document.createElement('div');
+      toast.id = 'toast';
+      toast.className = 'toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = text;
+    toast.classList.add('show');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  function scrollToBottom(){
+    const wrap = document.getElementById('messages');
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  // ---------- Sending ----------
+  let isResponding = false;
+
+  async function send(){
+    if (isResponding) return;
+    const input = document.getElementById('input');
+    const text = input.value.trim();
+    if (!text) return;
+
+    let chat = getActiveChat();
+    if (!chat){ newChat(); chat = getActiveChat(); }
+
+    // user message
+    chat.messages.push({ role: 'user', content: text });
+    if (chat.messages.length === 1){
+      chat.title = text.length > 32 ? text.slice(0,32) + '…' : text;
+      renderSidebar();
+    }
+    input.value = '';
+    autosize();
+    updateSendBtn();
+    renderMessages();
+
+    isResponding = true;
+    updateSendBtn();
+
+    // append a thinking message
+    const inner = document.getElementById('messagesInner');
+    const thinking = document.createElement('div');
+    thinking.className = 'msg assistant';
+    thinking.innerHTML = `
+      <div class="av">💩</div>
+      <div class="body"><span class="thinking">Thinking<span class="dots"><span></span><span></span><span></span></span></span></div>
+    `;
+    inner.appendChild(thinking);
+    scrollToBottom();
+
+    // delay then stream response — sometimes really thinks
+    let thinkTime;
+    if (Math.random() < 0.22){
+      thinkTime = 3500 + Math.random()*4500; // long: 3.5–8s
+    } else {
+      thinkTime = 600 + Math.random()*1400;  // normal: 0.6–2s
+    }
+    await sleep(thinkTime);
+
+    const response = randomResponse();
+    const body = thinking.querySelector('.body');
+    body.innerHTML = '<span class="cursor"></span>';
+
+    // stream word by word
+    const tokens = response.split(/(\s+)/); // keep whitespace
+    let acc = '';
+    for (let i = 0; i < tokens.length; i++){
+      acc += tokens[i];
+      body.innerHTML = escapeHtml(acc).replace(/\n/g,'<br>') + '<span class="cursor"></span>';
+      scrollToBottom();
+      // randomize stream speed
+      await sleep(20 + Math.random()*60);
+    }
+    body.innerHTML = escapeHtml(acc).replace(/\n/g,'<br>');
+    body.appendChild(createActionsEl(response));
+
+    chat.messages.push({ role: 'assistant', content: response });
+    isResponding = false;
+    updateSendBtn();
+    scrollToBottom();
+  }
+
+  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+  // ---------- Input handling ----------
+  function autosize(){
+    const t = document.getElementById('input');
+    t.style.height = 'auto';
+    t.style.height = Math.min(t.scrollHeight, 200) + 'px';
+  }
+  function updateSendBtn(){
+    const btn = document.getElementById('sendBtn');
+    const has = document.getElementById('input').value.trim().length > 0;
+    btn.disabled = !has || isResponding;
+  }
+
+  document.getElementById('input').addEventListener('input', () => { autosize(); updateSendBtn(); });
+  document.getElementById('input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault();
+      send();
+    }
+  });
+  document.getElementById('sendBtn').addEventListener('click', send);
+  document.getElementById('newChatBtn').addEventListener('click', newChat);
+  document.getElementById('menuBtn').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.toggle('open');
+  });
+
+  // ---------- Tooltips ----------
+  const tip = document.createElement('div');
+  tip.className = 'tooltip';
+  document.body.appendChild(tip);
+  let tipTarget = null;
+
+  function ensureTips(root){
+    (root || document).querySelectorAll('[title]').forEach(el => {
+      el.dataset.tip = el.getAttribute('title');
+      el.removeAttribute('title');
+    });
+  }
+
+  function showTip(el){
+    tip.textContent = el.dataset.tip;
+    tip.classList.add('show');
+    const rect = el.getBoundingClientRect();
+    const tw = tip.offsetWidth;
+    const th = tip.offsetHeight;
+    let x = rect.left + rect.width / 2 - tw / 2;
+    let y = rect.top - th - 6;
+    if (y < 6) y = rect.bottom + 6;
+    if (x < 6) x = 6;
+    if (x + tw > window.innerWidth - 6) x = window.innerWidth - tw - 6;
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  }
+
+  document.addEventListener('mouseover', (e) => {
+    const t = e.target.closest('[data-tip]');
+    if (t && t !== tipTarget){
+      tipTarget = t;
+      showTip(t);
+    }
+  });
+  document.addEventListener('mouseout', (e) => {
+    const t = e.target.closest('[data-tip]');
+    if (t && t === tipTarget && !t.contains(e.relatedTarget)){
+      tipTarget = null;
+      tip.classList.remove('show');
+    }
+  });
+
+  // ---------- User menu ----------
+  const userRow = document.getElementById('userRow');
+  const userMenu = document.getElementById('userMenu');
+  userRow.addEventListener('click', (e) => {
+    e.stopPropagation();
+    userMenu.classList.toggle('open');
+  });
+  userMenu.addEventListener('click', (e) => e.stopPropagation());
+  document.addEventListener('click', () => userMenu.classList.remove('open'));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') userMenu.classList.remove('open');
+  });
+
+  // init
+  ensureTips(document);
+  newChat();
+</script>
+</body>
 </html>
-
