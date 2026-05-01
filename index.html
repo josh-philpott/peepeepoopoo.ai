@@ -584,6 +584,36 @@
     return sentences.join(' ');
   }
 
+  // ---------- Haiku ----------
+  const HAIKU_WORDS = [
+    {w:'pee', s:1},
+    {w:'poo', s:1},
+    {w:'peepee', s:2},
+    {w:'poopoo', s:2},
+    {w:'peepeepoopoo', s:4},
+  ];
+
+  function fillSyllables(target){
+    let remaining = target;
+    const parts = [];
+    while (remaining > 0){
+      const candidates = HAIKU_WORDS.filter(x => x.s <= remaining);
+      const choice = pick(candidates);
+      parts.push(choice.w);
+      remaining -= choice.s;
+    }
+    return parts.join(' ');
+  }
+
+  function haikuResponse(){
+    const lines = [fillSyllables(5), fillSyllables(7), fillSyllables(5)];
+    return lines.map(l => l.charAt(0).toUpperCase() + l.slice(1)).join('\n');
+  }
+
+  function isHaikuRequest(text){
+    return /haiku/i.test(text);
+  }
+
   // ---------- Angry response (thumbs down) ----------
   const ANGRY_WORDS = [
     'PEEPEE','POOPOO','PEE','POO','PEEPEEPOOPOO',
@@ -910,7 +940,7 @@
     }
     await sleep(thinkTime);
 
-    const response = randomResponse();
+    const response = isHaikuRequest(text) ? haikuResponse() : randomResponse();
     const body = thinking.querySelector('.body');
     body.innerHTML = '<span class="cursor"></span>';
 
